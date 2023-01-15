@@ -2,18 +2,18 @@ package com.udacity
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.DownloadManager
-import android.app.NotificationManager
-import android.app.PendingIntent
+import android.app.*
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.pm.PermissionInfo
+import android.graphics.Color
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -28,7 +28,7 @@ class MainActivity : AppCompatActivity() {
     private var downloadID: Long = 0
     private lateinit var selectedDownloadUri: URL
     private var downloadStatus = "Fail"
-
+    private var NOTIFICATION_ID = 0
     private lateinit var notificationManager: NotificationManager
     private lateinit var pendingIntent: PendingIntent
     private lateinit var action: NotificationCompat.Action
@@ -62,7 +62,8 @@ class MainActivity : AppCompatActivity() {
 
                         download()
                     } else {
-                        Toast.makeText(this, getString(R.string.button_loading), Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, getString(R.string.button_loading), Toast.LENGTH_SHORT)
+                            .show()
 
                         requestPermissions(
                             arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
@@ -80,6 +81,7 @@ class MainActivity : AppCompatActivity() {
                     .show()
             }
         }
+        createNotificationChannel()
     }
 
     private val receiver = object : BroadcastReceiver() {
@@ -88,7 +90,7 @@ class MainActivity : AppCompatActivity() {
             if (downloadID == id) {
                 downloadStatus = "Success"
                 custom_button.buttonState = ButtonState.Completed
-
+                createNotification()
             }
         }
     }
@@ -132,6 +134,46 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun createNotification() {
+        notificationManager = ContextCompat.getSystemService(
+            this,
+            NotificationManager::class.java
+        ) as NotificationManager
+
+        val detailsIntent = Intent(this, DetailActivity::class.java)
+        detailsIntent.putExtra("fileName", selectedDownloadUri.title)
+        detailsIntent.putExtra("status", downloadStatus)
+        pendingIntent = TaskStackBuilder.create(this).run {
+            addNextIntentWithParentStack(detailsIntent)
+            getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT)
+        } as PendingIntent
+        action = NotificationCompat.Action(
+            R.drawable.ic_cloud_downloader,
+            getString(R.string.notification_button),
+            pendingIntent
+        )
+        val builder = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
+            .setContentTitle(selectedDownloadUri.title).setContentText(selectedDownloadUri.text)
+            .setSmallIcon(R.drawable.ic_cloud_downloader).setContentIntent(pendingIntent)
+            .setAutoCancel(true).addAction(action).setPriority(NotificationCompat.PRIORITY_HIGH)
+        notificationManager.notify(NOTIFICATION_ID, builder.build())
+    }
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O){
+            val notificationChannel = NotificationChannel(
+                CHANNEL_ID,
+                "LoadAppChannel",
+                NotificationManager.IMPORTANCE_HIGH).apply {
+                setShowBadge(false) }
+            notificationChannel.enableLights(true)
+            notificationChannel.lightColor = Color.BLUE
+            notificationChannel.enableVibration(true)
+            notificationChannel.description = "Download complete!"
+
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            notificationManager.createNotificationChannel(notificationChannel)
+        }
+    }
 
     companion object {
 
